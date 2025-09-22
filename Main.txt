@@ -1,0 +1,169 @@
+#include <Servo.h>
+
+// Motor Driver Pins
+#define ENA 3 // Left Motor Speed (PWM)
+#define ENB 6 // Right Motor Speed (PWM)
+#define IN1 2 // Left Motor Forward
+#define IN2 4 // Left Motor Backward
+#define IN3 5 // Right Motor Forward
+#define IN4 7 // Right Motor Backward
+
+// IR Sensor pins
+#define leftIRSensor 8
+#define rightIRSensor 9
+
+// Ultrasonic sensor pins
+#define trig 11
+#define echo 12
+
+Servo servoMotor;
+
+void setup() {
+  // IR Sensor Output
+  pinMode(leftIRSensor, INPUT);
+  pinMode(rightIRSensor, INPUT);
+
+  servoMotor.attach(10);  // Servo signal on pin 10
+
+  // ultrasonic sensor Output
+  pinMode(trig, OUTPUT);
+  pinMode(echo, INPUT);
+
+  // Motor Pins as Output
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  smartLineFollowing();
+}
+
+// Function to check obstacle at center (current angle)
+bool checkObstacle() {
+  delay(200);  // give time for servo to stabilize
+  digitalWrite(trig, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+
+  long duration = pulseIn(echo, HIGH);
+  int distance = duration * 0.034 / 2;
+
+  Serial.print("Distance: ");
+  Serial.println(distance);
+
+  return (distance < 20);
+}
+
+// Function to detect obstacle on the left
+bool obstacleLeft() {
+  servoMotor.write(180);     // Look left
+  delay(500);
+  bool isobstacle = checkObstacle();
+  if (!isobstacle){
+    turnLeft();
+    delay(500);
+  }
+  return isobstacle;
+}
+
+// Function to detect obstacle on the right
+bool obstacleRight() {
+  servoMotor.write(0);    // Look right
+  delay(500);
+  bool isobstacle = checkObstacle();
+  if (!isobstacle){
+    turnRight();
+    delay(500);
+  }
+  return isobstacle;
+}
+
+// Motor Movement Functions
+void forward() {
+  setSpeed(255, 255);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+void turnRight() {
+  setSpeed(255, 255); // Right motor slow
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+void turnLeft() {
+  setSpeed(255, 255); // Left motor slow
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+ void stopBot() {
+  setSpeed(0, 0);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+// Set Speed for Motors
+void setSpeed(int speedA, int speedB) {
+  analogWrite(ENA, speedA);
+  analogWrite(ENB, speedB);
+}
+
+
+// Smart Line Following with Obstacle Avoidance
+void smartLineFollowing() {
+  int leftValue = digitalRead(leftIRSensor);
+  int rightValue = digitalRead(rightIRSensor);
+
+  servoMotor.write(90); 
+
+  bool obstacle = checkObstacle();  // Face forward
+
+  if (obstacle) {
+    // Stop here if obstacle detected
+    stopBot();
+
+    if (!obstacleLeft()) {
+      Serial.println("Turning Left");
+      turnLeft();
+      delay(500);
+    } else if (!obstacleRight()) {
+      Serial.println("Turning Right");
+      turnRight();
+      delay(500);
+    } else {
+      Serial.println("No path - STOP");
+      stopBot();
+      delay(1000);
+    }
+
+    return;
+  } else {
+    // Line following logic (adjust based on your bot)
+    if (leftValue == 0 && rightValue == 0) {
+      Serial.println("Forward");
+      forward();
+    } else if (leftValue == 0 && rightValue == 1) {
+      Serial.println("Turn Left");
+      turnRight();
+    } else if (leftValue == 1 && rightValue == 0) {
+      Serial.println("Turn Right");
+      turnLeft();
+    } else {
+      Serial.println("Stop");
+      stopBot();
+    }
+  }
+}
